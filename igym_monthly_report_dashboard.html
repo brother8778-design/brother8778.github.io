@@ -1,0 +1,1771 @@
+<!doctype html>
+<html lang="zh-Hant" class="scroll-smooth">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IGYM 月報數據分析與管理系統</title>
+  
+  <!-- 引入 Tailwind CSS 與 Google 字型 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+  <!-- Font Awesome 經典圖標庫 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- ChartJS 與 OCR TesseractJS 套件 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <script>
+    // 配置 Tailwind 主題顏色
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            igym: {
+              50: '#fff7ed',
+              100: '#ffedd5',
+              200: '#fed7aa',
+              300: '#fdbb74',
+              400: '#fb923c',
+              500: '#f97316',
+              600: '#ea580c',
+              700: '#c2410c',
+              800: '#9a3412',
+              900: '#7c2d12',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* 漸層背景過渡與客製化細節 */
+    body {
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+    
+    /* 隱藏預設捲軸並美化 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 999px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #475569;
+    }
+
+    /* 漸變玻璃卡片效果 */
+    .glass-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(249, 115, 22, 0.12);
+    }
+    .dark .glass-card {
+      background: rgba(23, 32, 51, 0.85);
+      border: 1px solid rgba(249, 115, 22, 0.2);
+    }
+
+    /* 數字變化指示器 */
+    .plus-trend { color: #ef4444; font-weight: 850; }
+    .minus-trend { color: #16a34a; font-weight: 850; }
+    .zero-trend { color: #94a3b8; font-weight: 850; }
+
+    /* 編輯模式下的儲存格樣式 */
+    body.igym-editing .igym-edit-cell {
+      background-color: rgba(254, 215, 170, 0.4) !important;
+      outline: 2px dashed #f97316;
+      border-radius: 4px;
+      cursor: text;
+      transition: all 0.2s;
+    }
+    body.igym-editing .igym-edit-cell:focus {
+      background-color: #ffffff !important;
+      outline: 2px solid #ea580c;
+      box-shadow: 0 0 12px rgba(234, 88, 12, 0.2);
+    }
+    .dark body.igym-editing .igym-edit-cell {
+      background-color: rgba(124, 45, 18, 0.3) !important;
+    }
+
+    /* Toast 通知動畫 */
+    @keyframes slideIn {
+      from { transform: translateY(100%) scale(0.9); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    @keyframes fadeOut {
+      to { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    }
+    .toast-animate-in {
+      animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    .toast-animate-out {
+      animation: fadeOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-orange-50 via-amber-50/40 to-white text-slate-800 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100 min-h-screen font-sans">
+
+  <!-- 客製化 Toast 通知系統 (代替傳統的 alert) -->
+  <div id="toast-container" class="fixed bottom-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none max-w-sm w-full px-4"></div>
+
+  <!-- 登入畫面 -->
+  <div id="login" class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gradient-to-tr from-orange-100 via-amber-50 to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 transition-opacity duration-300">
+    <div class="w-full max-w-md p-8 rounded-[32px] glass-card shadow-[0_24px_60px_rgba(249,115,22,0.15)] text-center transform scale-100 transition-all">
+      <div class="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-igym-500 to-igym-600 text-white flex items-center justify-center text-3xl font-black shadow-lg shadow-orange-500/30">
+        IG
+      </div>
+      <h1 class="text-3xl font-black text-igym-800 dark:text-igym-300 tracking-tight">IGYM 月報數據</h1>
+      <p class="text-slate-500 dark:text-slate-400 mt-2 font-medium">智慧營運數據分析系統</p>
+      
+      <div class="my-8">
+        <div class="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-inner focus-within:ring-2 focus-within:ring-igym-500 transition-all">
+          <i class="fa-solid fa-lock text-slate-400 dark:text-slate-500 px-1"></i>
+          <input id="pw" type="password" placeholder="請輸入登入密碼" class="flex-1 py-3 px-1 text-lg border-0 bg-transparent text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 w-full">
+          <button class="text-slate-400 hover:text-igym-500 p-2 transition-colors focus:outline-none" id="eye" type="button">
+            <i class="fa-regular fa-eye"></i>
+          </button>
+        </div>
+        <div id="err" class="h-6 text-red-500 font-bold text-sm mt-2 transition-all"></div>
+      </div>
+      
+      <button class="w-full py-4 rounded-2xl bg-gradient-to-r from-igym-500 to-igym-600 hover:from-igym-600 hover:to-igym-700 text-white text-lg font-black shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-all" id="loginBtn">
+        安全登入 <i class="fa-solid fa-right-to-bracket ml-2"></i>
+      </button>
+      
+      <div class="text-xs text-slate-400 dark:text-slate-600 mt-8 font-medium">© IGYM FITNESS CENTER · ENTERPRISE v7.5</div>
+    </div>
+  </div>
+
+  <!-- 應用程式主畫面 -->
+  <div id="app" class="hidden min-h-screen lg:flex">
+    
+    <!-- 側邊導覽列 (桌面版) -->
+    <aside id="side" class="fixed inset-y-0 left-0 w-72 m-4 rounded-[28px] glass-card shadow-2xl flex flex-col z-40 transition-transform duration-300 lg:translate-x-0 -translate-x-[110%]">
+      <!-- 品牌標誌 -->
+      <div class="p-6 border-b border-orange-500/10 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-igym-500 to-igym-600 text-white flex items-center justify-center text-xl font-black shadow-md shadow-orange-500/15">
+          IG
+        </div>
+        <div>
+          <h2 class="text-lg font-black text-igym-800 dark:text-igym-300 leading-none">IGYM FITNESS</h2>
+          <span class="text-xs text-slate-400 dark:text-slate-500 font-bold mt-1 block">營運數據分析月報</span>
+        </div>
+      </div>
+      
+      <!-- 導覽功能選單 -->
+      <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+        <button class="navBtn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-igym-100 hover:text-igym-800 dark:hover:bg-igym-950/40 dark:hover:text-igym-300 font-extrabold text-left transition-all active" data-page="dashboard">
+          <i class="fa-solid fa-chart-pie w-5 text-center text-lg"></i> 營運儀表板
+        </button>
+        <button class="navBtn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-igym-100 hover:text-igym-800 dark:hover:bg-igym-950/40 dark:hover:text-igym-300 font-extrabold text-left transition-all" data-page="operation">
+          <i class="fa-solid fa-square-poll-vertical w-5 text-center text-lg"></i> 營運績效總覽
+        </button>
+        <button class="navBtn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-igym-100 hover:text-igym-800 dark:hover:bg-igym-950/40 dark:hover:text-igym-300 font-extrabold text-left transition-all" data-page="effective">
+          <i class="fa-solid fa-users w-5 text-center text-lg"></i> 有效會員分析
+        </button>
+        <button class="navBtn w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-slate-600 dark:text-slate-300 hover:bg-igym-100 hover:text-igym-800 dark:hover:bg-igym-950/40 dark:hover:text-igym-300 font-extrabold text-left transition-all" data-page="coaches">
+          <i class="fa-solid fa-dumbbell w-5 text-center text-lg"></i> 專業教練表現
+        </button>
+        
+        <div class="h-px bg-orange-500/10 my-4"></div>
+        
+        <button id="trashBtn" class="w-full flex items-center gap-3.5 px-4 py-3.5 rounded-2xl text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-950/20 dark:hover:text-red-400 font-bold text-left transition-all">
+          <i class="fa-solid fa-trash-can w-5 text-center text-lg"></i> 數據回收桶
+        </button>
+      </nav>
+
+      <!-- 底部控制項 (深色模式與登出) -->
+      <div class="p-4 border-t border-orange-500/10 space-y-2">
+        <button id="darkModeToggle" class="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800/60 font-bold text-sm transition-all">
+          <span class="flex items-center gap-3"><i class="fa-solid fa-circle-half-stroke text-lg"></i> <span>深色主題</span></span>
+          <div class="w-10 h-6 bg-slate-200 dark:bg-igym-600 rounded-full p-0.5 transition-colors">
+            <div class="w-5 h-5 bg-white rounded-full shadow transform translate-x-0 dark:translate-x-4 transition-transform"></div>
+          </div>
+        </button>
+        <button id="logout" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 font-bold text-sm transition-all">
+          <i class="fa-solid fa-right-from-bracket text-lg"></i> 安全登出系統
+        </button>
+      </div>
+    </aside>
+
+    <!-- 主要內容顯示區域 -->
+    <main class="flex-1 lg:ml-80 p-6 lg:p-8 min-h-screen flex flex-col">
+      
+      <!-- 頂部功能導覽與快速按鈕 -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div class="flex items-center gap-3">
+          <button id="menu" class="lg:hidden p-3.5 rounded-2xl glass-card text-slate-600 dark:text-slate-200 hover:bg-igym-100 dark:hover:bg-slate-800 transition-all">
+            <i class="fa-solid fa-bars text-xl"></i>
+          </button>
+          <div class="lg:hidden w-10 h-10 rounded-lg bg-igym-500 text-white flex items-center justify-center text-lg font-black shadow">IG</div>
+          <h2 class="text-2xl font-black text-slate-800 dark:text-slate-100 hidden lg:block tracking-tight">
+            數據管理中心
+          </h2>
+        </div>
+        
+        <!-- 管理按鈕控制盤 -->
+        <div class="flex flex-wrap items-center gap-2 bg-white/60 dark:bg-slate-900/60 p-1.5 rounded-2xl border border-orange-500/10">
+          <button id="igymAddMonthBtn" class="flex items-center gap-1.5 px-3 py-2 text-xs font-extrabold rounded-xl hover:bg-igym-50 dark:hover:bg-igym-950/20 text-igym-600 dark:text-igym-400 transition-all">
+            <i class="fa-solid fa-plus"></i> 新增月份
+          </button>
+          <button id="igymImportBtn" class="flex items-center gap-1.5 px-3 py-2 text-xs font-extrabold rounded-xl hover:bg-igym-50 dark:hover:bg-igym-950/20 text-igym-600 dark:text-igym-400 transition-all">
+            <i class="fa-solid fa-camera"></i> 匯入月報
+          </button>
+          <button id="igymDeleteMonthBtn" class="flex items-center gap-1.5 px-3 py-2 text-xs font-extrabold rounded-xl hover:bg-red-50 dark:hover:bg-red-950/10 text-red-600 dark:text-red-400 transition-all">
+            <i class="fa-solid fa-trash"></i> 刪除月份
+          </button>
+          <div class="w-px h-5 bg-slate-200 dark:bg-slate-800 mx-1"></div>
+          <button id="igymEditBtn" class="flex items-center gap-1.5 px-4 py-2 text-xs font-black rounded-xl border border-igym-500/20 bg-igym-500 text-white shadow-sm hover:bg-igym-600 active:scale-95 transition-all">
+            <i class="fa-solid fa-pen-to-square"></i> 編輯模式
+          </button>
+        </div>
+      </div>
+
+      <!-- 子頁面：營運儀表板 -->
+      <section id="page-dashboard" class="page active space-y-6">
+        <div class="p-8 rounded-[32px] bg-gradient-to-br from-igym-500 to-igym-600 text-white relative overflow-hidden shadow-xl shadow-orange-500/10">
+          <!-- 飾裝幾何球體 -->
+          <div class="absolute -right-16 -top-16 w-56 h-56 rounded-full bg-white/10 blur-xl"></div>
+          <div class="absolute -left-10 -bottom-10 w-40 h-40 rounded-full bg-orange-600/20 blur-lg"></div>
+          
+          <div class="relative z-10 space-y-3">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-extrabold uppercase tracking-widest text-orange-50">
+              <i class="fa-solid fa-circle-nodes"></i> IGYM Operations
+            </span>
+            <h1 class="text-3xl lg:text-4xl font-black tracking-tight">營運管理月報儀表板</h1>
+            <p id="dashboard-subtitle" class="text-orange-100 font-medium text-sm lg:text-base">
+              資料讀取中...
+            </p>
+          </div>
+        </div>
+
+        <!-- KPI 數據卡片格線 -->
+        <div id="kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- 動態產生 KPI 項目 -->
+        </div>
+
+        <!-- 營收趨勢圖與健康評估 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col h-[400px]">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-chart-line text-igym-500"></i> 近 13 個月營收變動趨勢
+              </h3>
+            </div>
+            <div class="flex-1 min-h-0 relative">
+              <canvas id="revenueChart"></canvas>
+            </div>
+          </div>
+          
+          <div class="p-6 rounded-3xl bg-gradient-to-b from-white to-igym-50/20 dark:from-slate-900 dark:to-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl shadow-slate-100/50 dark:shadow-none flex flex-col justify-between">
+            <div class="space-y-4">
+              <h3 class="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                <i class="fa-solid fa-heart-pulse text-igym-500"></i> 經營健康度評估
+              </h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                綜合評估教練課程、訂閱會員、年約會員、單次進場與當期營收變動。
+              </p>
+            </div>
+            
+            <div class="my-6 text-center">
+              <div id="healthScore" class="text-7xl font-black text-igym-500 tracking-tighter drop-shadow-sm">87%</div>
+              <div class="text-xs font-black text-igym-700 dark:text-igym-300 mt-2 bg-igym-100/60 dark:bg-igym-950/40 px-3 py-1.5 rounded-full inline-block">經營狀況：極佳</div>
+            </div>
+            
+            <div class="text-xs text-slate-400 dark:text-slate-500 border-t border-slate-200/60 dark:border-slate-800 pt-4">
+              * 每月自動依據數據波動演算法動態估算。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 子頁面：營運績效總覽 -->
+      <section id="page-operation" class="page hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div>
+            <h2 class="text-2xl font-black tracking-tight">📊 營運績效總覽</h2>
+            <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">單次進場、訂閱制、年約產品、教練課詳細銷售數據</p>
+          </div>
+          <span class="text-xs font-black text-igym-500 bg-igym-50 dark:bg-igym-950/40 border border-igym-500/10 px-3 py-1.5 rounded-full" id="operationRange"></span>
+        </div>
+        
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden">
+          <div class="overflow-x-auto max-h-[calc(100vh-240px)]">
+            <table class="w-full text-sm border-collapse min-w-[800px]" id="operationTable">
+              <!-- 動態渲染營運表格 -->
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 子頁面：有效會員分析 -->
+      <section id="page-effective" class="page hidden space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+          <div>
+            <h2 class="text-2xl font-black tracking-tight">👥 有效會員結構</h2>
+            <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">追蹤訂閱會員、全時段年約與限時段年約之保留數</p>
+          </div>
+        </div>
+        
+        <div class="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-3xl shadow-xl overflow-hidden">
+          <div class="overflow-x-auto max-h-[calc(100vh-240px)]">
+            <table class="w-full text-sm border-collapse min-w-[800px]" id="effectiveTable">
+              <!-- 動態渲染會員表格 -->
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 子頁面：專業教練表現 -->
+      <section id="page-coaches" class="page hidden space-y-6">
+        <div class="border-b border-slate-200 dark:border-slate-800 pb-4">
+          <h2 class="text-2xl font-black tracking-tight">🏋 教練表現分析</h2>
+          <p class="text-sm text-slate-400 dark:text-slate-500 mt-1">監控每位教練的業績、操課堂數、學員與體驗進案</p>
+        </div>
+
+        <!-- 教練選取頁籤 -->
+        <div id="coachTabs" class="flex flex-wrap gap-2">
+          <!-- 動態載入教練名稱 -->
+        </div>
+
+        <!-- 教練摘要數值區 -->
+        <div id="coachSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <!-- 呈現當前選中教練的關鍵指標 -->
+        </div>
+
+        <!-- 四張長條圖配置 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col h-[350px]">
+            <h3 class="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center justify-between mb-4">
+              <span>💰 教練銷售業績</span>
+              <span class="text-xs text-slate-400">當期累積銷售額</span>
+            </h3>
+            <div class="flex-1 min-h-0 relative">
+              <canvas id="coachRevenue"></canvas>
+            </div>
+          </div>
+          
+          <div class="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col h-[350px]">
+            <h3 class="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center justify-between mb-4">
+              <span>🏋 實際操課堂數</span>
+              <span class="text-xs text-slate-400">教練執行私人教練課總堂數</span>
+            </h3>
+            <div class="flex-1 min-h-0 relative">
+              <canvas id="coachClasses"></canvas>
+            </div>
+          </div>
+          
+          <div class="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col h-[350px]">
+            <h3 class="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center justify-between mb-4">
+              <span>👤 活躍授課學員數</span>
+              <span class="text-xs text-slate-400">本期上課的獨立不重複學員數</span>
+            </h3>
+            <div class="flex-1 min-h-0 relative">
+              <canvas id="coachStudents"></canvas>
+            </div>
+          </div>
+          
+          <div class="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-xl flex flex-col h-[350px]">
+            <h3 class="text-sm font-black text-slate-800 dark:text-slate-200 flex items-center justify-between mb-4">
+              <span>🎯 體驗課預約人數</span>
+              <span class="text-xs text-slate-400">新進體驗課人數</span>
+            </h3>
+            <div class="flex-1 min-h-0 relative">
+              <canvas id="coachTrials"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- 模組視窗：刪除月份 -->
+  <div id="igymDeleteMonthModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="w-full max-w-md p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <h3 class="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2 text-red-500">
+          <i class="fa-solid fa-trash-can"></i> 移至回收桶
+        </h3>
+        <button id="igymCloseDeleteModal" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors" type="button">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+      <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+        請點擊要刪除的月份。刪除後該月的數據將暫存於數據回收桶內，您可以隨時在回收桶進行還原。
+      </p>
+      <div id="igymDeleteMonthList" class="grid grid-cols-3 gap-2 py-2">
+        <!-- 動態月份按鈕 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 模組視窗：OCR 辨識與貼上匯入 -->
+  <div id="igymImportModal" class="fixed inset-0 bg-slate-950/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="w-full max-w-4xl p-6 lg:p-8 rounded-[32px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col max-h-[90vh]">
+      
+      <!-- 頂部標頭 -->
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
+        <div>
+          <h3 class="text-2xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+            <i class="fa-solid fa-camera text-igym-500"></i> AI 影像辨識與匯入
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">上傳月報擷圖進行 OCR 辨識，系統將自動定位填入對應數值</p>
+        </div>
+        <button id="igymCloseImport" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors" type="button">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- 中段配置 (兩欄設計：左上傳辨識 / 右數據對照) -->
+      <div class="flex-1 overflow-y-auto space-y-6 pr-2">
+        
+        <!-- 控制參數區 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-950/40 p-4 rounded-2xl border border-orange-500/5">
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400">1. 選取匯入目的月份</label>
+            <select id="igymImportMonth" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-sm font-bold focus:ring-2 focus:ring-igym-500 focus:outline-none w-full"></select>
+          </div>
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400">2. 選擇影像檔案</label>
+            <input id="igymImportImages" type="file" accept="image/*" multiple class="file:bg-igym-100 file:hover:bg-igym-200 file:text-igym-800 file:border-0 file:rounded-lg file:px-3 file:py-1 file:text-xs file:font-black file:cursor-pointer text-xs text-slate-400 cursor-pointer w-full">
+          </div>
+        </div>
+
+        <!-- 預覽影像區 -->
+        <div id="igymImportPreview" class="grid grid-cols-2 sm:grid-cols-3 gap-3"></div>
+
+        <!-- 文字與影像處理控制區 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <!-- 左側：OCR 原文與控制 -->
+          <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                <i class="fa-solid fa-file-invoice"></i> OCR 原文內容 / 貼上文字
+              </label>
+              <div class="flex gap-2">
+                <button id="igymRunOCR" class="px-3 py-1.5 bg-igym-500 text-white rounded-lg text-xs font-black hover:bg-igym-600 transition-all" type="button">
+                  <i class="fa-solid fa-robot"></i> 開始 AI 辨識
+                </button>
+                <button id="igymParseText" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-black hover:bg-slate-200 transition-all" type="button">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> 重新解析
+                </button>
+              </div>
+            </div>
+            <textarea id="igymOCRText" class="w-full h-48 bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 text-xs font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-igym-500" placeholder="點選開始AI辨識，或直接在此輸入或貼上資料，例如：&#10;100人數=82&#10;100金額=8200&#10;120人數=931&#10;120金額=111720&#10;150人數=484&#10;150金額=72600&#10;訂閱制=372&#10;全時段年約=312&#10;限時段年約=125&#10;教練總金額=1004100&#10;A課=446400&#10;B課=557700&#10;授課小計=1004100&#10;體驗課=5"></textarea>
+          </div>
+
+          <!-- 右側：資料預覽對照與微調 -->
+          <div class="flex flex-col gap-3">
+            <label class="text-xs font-black text-slate-500 dark:text-slate-400 flex items-center gap-1">
+              <i class="fa-solid fa-clipboard-check"></i> 結構化預覽（手動微調）
+            </label>
+            <div class="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/50 dark:border-slate-800">
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">100元人數</span>
+                <input data-import-field="single100Count" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">100元金額</span>
+                <input data-import-field="single100Amount" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">120元人數</span>
+                <input data-import-field="single120Count" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">120元金額</span>
+                <input data-import-field="single120Amount" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">150元人數</span>
+                <input data-import-field="single150Count" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">150元金額</span>
+                <input data-import-field="single150Amount" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">訂閱制會員</span>
+                <input data-import-field="subMembers" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">全時年約會員</span>
+                <input data-import-field="fullYearMembers" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">限時年約會員</span>
+                <input data-import-field="limitedYearMembers" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">教練課總業績</span>
+                <input data-import-field="coachRevenue" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">A課業績</span>
+                <input data-import-field="aCourse" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">B課業績</span>
+                <input data-import-field="bCourse" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">授課小計</span>
+                <input data-import-field="classSubtotal" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+              <div class="space-y-1">
+                <span class="text-[10px] font-black text-slate-400">體驗課堂數</span>
+                <input data-import-field="trialCount" type="number" value="0" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs font-black">
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- 底部狀態列與儲存鍵 -->
+      <div class="border-t border-slate-100 dark:border-slate-800 pt-4 mt-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div id="igymImportStatus" class="text-xs font-bold text-igym-700 bg-igym-50 dark:bg-slate-950 dark:text-igym-400 px-3 py-2 rounded-xl border border-orange-500/10 flex-1">
+          等待影像上傳...
+        </div>
+        <div class="flex gap-2">
+          <button id="igymCloseImportBtn" class="px-5 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-2xl text-xs font-extrabold transition-all" type="button">
+            取消關閉
+          </button>
+          <button id="igymApplyImport" class="px-6 py-3 bg-gradient-to-r from-igym-500 to-igym-600 hover:from-igym-600 hover:to-igym-700 text-white rounded-2xl text-xs font-black shadow-md shadow-orange-500/10 active:scale-95 transition-all" type="button">
+            更新並應用到儀表板
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 抽屜側滑欄：數據回收桶 -->
+  <div id="drawer" class="fixed inset-y-0 right-0 w-full max-w-md m-4 rounded-[28px] glass-card shadow-2xl p-6 z-50 flex flex-col transform translate-x-[110%] transition-transform duration-300">
+    <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+      <div>
+        <h3 class="text-xl font-black text-slate-800 dark:text-white flex items-center gap-2">
+          <i class="fa-solid fa-trash-can text-red-500"></i> 回收暫存區
+        </h3>
+        <p class="text-[11px] text-slate-400 mt-1">暫存已刪除的月份數據，可將其還原或徹底銷毀</p>
+      </div>
+      <button id="closeTrash" class="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+    
+    <!-- 項目列表 -->
+    <div id="trashList" class="flex-1 overflow-y-auto py-4 space-y-3">
+      <!-- 動態載入回收桶內資料 -->
+    </div>
+
+    <!-- 底部控制 -->
+    <div class="border-t border-slate-100 dark:border-slate-800 pt-4 flex gap-2">
+      <button id="clearTrashBtn" class="flex-1 py-3 bg-red-50 hover:bg-red-100 dark:bg-red-950/20 text-red-600 rounded-xl text-xs font-black transition-all">
+        清空回收桶
+      </button>
+      <button id="closeTrashBtn" class="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-black transition-all">
+        關閉視窗
+      </button>
+    </div>
+  </div>
+
+  <!-- 應用程式 Javascript 主控制邏輯 -->
+  <script>
+    // 初始化主資料庫結構 (若 LocalStorage 存在，則優先載入)
+    let DATA = {
+      "months": ["1月", "2月", "3月", "4月", "5月", "6月"],
+      "kpi": {
+        "單次進場": [1096, 1192, 1630, 1673, 1812, 1497],
+        "訂閱人數": [123, 151, 175, 196, 191, 167],
+        "有效會員": [281, 338, 375, 414, 392, 372],
+        "教練業績": [961200, 836999, 1016400, 832800, 804000, 1004100]
+      },
+      "operation": [
+        ["單次進場人數", "總人數", [1096, 1192, 1630, 1673, 1812, 1497], ""],
+        ["單次進場人數", "總金額", [140500, 148170, 211150, 216210, 234610, 192520], "$"],
+        ["單次進場人數", "100$", [85, 60, 73, 84, 79, 82], "位"],
+        ["單次進場人數", "120$", [655, 853, 990, 1018, 1108, 931], "位"],
+        ["單次進場人數", "150$", [356, 279, 567, 571, 625, 484], "位"],
+        ["訂閱人數", "總人數", [123, 151, 175, 196, 191, 167], ""],
+        ["年約(全時段) 888", "總人數", [25, 31, 34, 33, 19, 23], ""],
+        ["年約(全時段) 888", "A客(新)", [9, 18, 21, 17, 8, 13], ""],
+        ["年約(全時段) 888", "B客(舊)", [16, 13, 13, 16, 11, 10], ""],
+        ["年約(限時段) 788", "總人數", [10, 11, 20, 14, 6, 14], ""],
+        ["年約(限時段) 788", "A客(新)", [3, 6, 12, 9, 4, 7], ""],
+        ["年約(限時段) 788", "B客(舊)", [7, 5, 8, 5, 2, 7], ""],
+        ["教練課程", "總金額", [961200, 836999, 1016400, 832800, 804000, 1004100], "$"],
+        ["教練課程", "體驗課", [5, 7, 10, 6, 9, 5], ""],
+        ["教練課程", "A客(新)", [453600, 187799, 846000, 381600, 291600, 446400], "$"],
+        ["教練課程", "B客(舊)", [507600, 649200, 170400, 451200, 512400, 557700], "$"]
+      ],
+      "effective": [
+        ["訂閱制", [281, 338, 375, 414, 392, 372]],
+        ["全時段年約", [289, 296, 299, 309, 306, 312]],
+        ["限時段年約", [108, 111, 121, 125, 125, 125]]
+      ],
+      "revenue13": {
+        "months": ["六月", "七月", "八月", "九月", "十月", "十一月", "十二月", "一月", "二月", "三月", "四月", "五月", "六月"],
+        "values": [835799, 1094400, 694200, 729600, 868800, 639600, 743200, 961200, 836999, 1016400, 832800, 804000, 1004100]
+      },
+      "coaches": {
+        "WALLY": {
+          "操課": [77, 51, 90, 88, 81, 75],
+          "業績": [441600, 224997, 166199, 196800, 98999, 231300],
+          "學員": [32, 35, 36, 37, 40, 42],
+          "體驗": [5, 3, 3, 3, 0, 0]
+        },
+        "TIMMY": {
+          "操課": [102, 62, 105, 101, 110, 81],
+          "業績": [119998, 125399, 118798, 207600, 124800, 93600],
+          "學員": [42, 41, 42, 43, 46, 48],
+          "體驗": [1, 0, 2, 0, 1, 0]
+        },
+        "NOMI": {
+          "操課": [90, 68, 101, 85, 91, 101],
+          "業績": [62999, 125399, 148199, 62999, 155998, 187200],
+          "學員": [40, 41, 41, 43, 46, 49],
+          "體驗": [1, 1, 3, 1, 2, 2]
+        },
+        "TIFA": {
+          "操課": [109, 81, 109, 110, 113, 107],
+          "業績": [175799, 156000, 212997, 119399, 164997, 63598],
+          "學員": [52, 53, 52, 53, 54, 55],
+          "體驗": [2, 1, 3, 1, 3, 0]
+        },
+        "BRYANT": {
+          "操課": [86, 83, 108, 94, 86, 103],
+          "業績": [81600, 130199, 81600, 149399, 145200, 197399],
+          "學員": [40, 42, 44, 46, 48, 50],
+          "體驗": [1, 0, 2, 2, 2, 2]
+        },
+        "JERRY": {
+          "操課": [96, 75, 100, 118, 108, 105],
+          "業績": [82199, 79198, 275397, 98999, 119397, 98400],
+          "學員": [45, 46, 38, 41, 48, 49],
+          "體驗": [1, 1, 6, 1, 1, 1]
+        },
+        "HENRY": {
+          "操課": [0, 0, 0, 0, 0, 7],
+          "業績": [0, 0, 0, 0, 0, 135598],
+          "學員": [0, 0, 0, 0, 0, 3],
+          "體驗": [0, 0, 0, 0, 0, 7]
+        }
+      }
+    };
+
+    // 載入 localStorage 資料
+    const IGYM_SAVED_DATA = localStorage.getItem("igymDashboardData");
+    if(IGYM_SAVED_DATA){
+      try{ DATA = JSON.parse(IGYM_SAVED_DATA); }catch(e){ console.warn("載入資料異常，套用預設值", e); }
+    }
+
+    // 密碼設定與頁面管理變數
+    const PASSWORD = "B12345";
+    let charts = {};
+    let selectedCoach = Object.keys(DATA.coaches)[0];
+    let trash = JSON.parse(localStorage.getItem("igymTrash") || "[]");
+    let currentPage = "dashboard";
+
+    // 註冊 ChartJS 外掛
+    Chart.register(ChartDataLabels);
+
+    // 精美的 Toast 提示外掛 (取代傳統 Alert)
+    function showToast(message, type = 'success') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast-animate-in flex items-center gap-3 px-4 py-3.5 rounded-2xl shadow-xl pointer-events-auto border transition-all text-sm font-extrabold ${
+        type === 'success' 
+          ? 'bg-emerald-50 dark:bg-emerald-950/90 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/50' 
+          : type === 'error'
+          ? 'bg-rose-50 dark:bg-rose-950/90 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800/50'
+          : 'bg-amber-50 dark:bg-amber-950/90 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800/50'
+      }`;
+      
+      const icon = type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation';
+      toast.innerHTML = `
+        <i class="fa-solid ${icon} text-lg"></i>
+        <div class="flex-1">${message}</div>
+      `;
+      
+      container.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.classList.replace('toast-animate-in', 'toast-animate-out');
+        toast.addEventListener('animationend', () => toast.remove());
+      }, 3500);
+    }
+
+    // 深色模式切換管理
+    const isDark = localStorage.getItem('igymTheme') === 'dark' || 
+                 (!('igymTheme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    
+    function setTheme(dark) {
+      if (dark) {
+        document.documentElement.classList.add('dark');
+        localStorage.setItem('igymTheme', 'dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        localStorage.setItem('igymTheme', 'light');
+      }
+    }
+    setTheme(isDark);
+
+    document.getElementById('darkModeToggle').onclick = () => {
+      const dark = !document.documentElement.classList.contains('dark');
+      setTheme(dark);
+    };
+
+    // 13個月營收折線圖自訂數值標籤
+    const fixedValueLabelsPlugin = {
+      id: "fixedValueLabels",
+      afterDatasetsDraw(chart, args, opts) {
+        if (!opts || !opts.enabled) return;
+        const { ctx, chartArea, scales } = chart;
+        const dataset = chart.data.datasets[0];
+        if (!dataset || !dataset.data) return;
+
+        const money = !!opts.money;
+        const isSmall = chart.width < 500;
+        const y1 = chartArea.top - (isSmall ? 40 : 34);
+        const y2 = chartArea.top - 14;
+
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `800 ${isSmall ? 8 : 10}px Inter, "Noto Sans TC", sans-serif`;
+
+        dataset.data.forEach((raw, i) => {
+          const value = Number(raw || 0);
+          const label = money ? "$" + value.toLocaleString() : value.toLocaleString();
+          const x = scales.x.getPixelForValue(i);
+          const y = isSmall ? (i % 2 === 0 ? y1 : y2) : y2;
+
+          const metrics = ctx.measureText(label);
+          const padX = isSmall ? 4 : 6;
+          const w = metrics.width + padX * 2;
+          const h = isSmall ? 18 : 20;
+
+          let bx = x - w / 2;
+          const minX = chartArea.left + 2;
+          const maxX = chartArea.right - w - 2;
+          if (bx < minX) bx = minX;
+          if (bx > maxX) bx = maxX;
+
+          ctx.beginPath();
+          const r = 6;
+          const by = y - h / 2;
+          ctx.roundRect(bx, by, w, h, r);
+          ctx.closePath();
+
+          ctx.fillStyle = "rgba(255,255,255,0.96)";
+          ctx.fill();
+          ctx.strokeStyle = "rgba(249,115,22,0.22)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = "#9a3412";
+          ctx.fillText(label, bx + w / 2, y);
+        });
+        ctx.restore();
+      }
+    };
+    Chart.register(fixedValueLabelsPlugin);
+
+    // 教練各分析長條圖自訂數值標籤
+    const barValueLabelsPlugin = {
+      id: "barValueLabels",
+      afterDatasetsDraw(chart, args, opts) {
+        if (!opts || !opts.enabled) return;
+        const { ctx, chartArea } = chart;
+        const meta = chart.getDatasetMeta(0);
+        const data = chart.data.datasets[0].data || [];
+        const money = !!opts.money;
+        const unit = opts.unit || "";
+        const isSmall = chart.width < 500;
+
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `900 ${isSmall ? 9 : 11}px Inter, "Noto Sans TC", sans-serif`;
+
+        meta.data.forEach((bar, i) => {
+          const value = Number(data[i] || 0);
+          const label = money ? "$" + value.toLocaleString() : value.toLocaleString() + unit;
+          const props = bar.getProps(["x", "y", "base"], true);
+          const x = Math.round(props.x);
+          const y = Math.max(chartArea.top + (isSmall ? 15 : 18), Math.round(props.y) - (isSmall ? 16 : 20));
+
+          const metrics = ctx.measureText(label);
+          const padX = isSmall ? 5 : 7;
+          const w = Math.ceil(metrics.width + padX * 2);
+          const h = isSmall ? 20 : 22;
+          let bx = Math.round(x - w / 2);
+          const minX = Math.round(chartArea.left + 2);
+          const maxX = Math.round(chartArea.right - w - 2);
+          if (bx < minX) bx = minX;
+          if (bx > maxX) bx = maxX;
+          const by = Math.round(y - h / 2);
+
+          ctx.shadowColor = "rgba(154,52,18,0.06)";
+          ctx.shadowBlur = 4;
+          ctx.shadowOffsetY = 2;
+
+          ctx.beginPath();
+          ctx.roundRect(bx, by, w, h, 8);
+          ctx.closePath();
+
+          ctx.fillStyle = "rgba(255,255,255,0.98)";
+          ctx.fill();
+          ctx.shadowColor = "transparent";
+          ctx.strokeStyle = "rgba(249,115,22,0.25)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+
+          ctx.fillStyle = "#7c2d12";
+          ctx.fillText(label, bx + w / 2, by + h / 2 + 0.5);
+        });
+        ctx.restore();
+      }
+    };
+    Chart.register(barValueLabelsPlugin);
+
+    // 統計計算與格式化輔助函式
+    function fmt(v, p = "", s = "") {
+      v = Number(v || 0);
+      return p === "$" ? "$" + v.toLocaleString() : v.toLocaleString() + s;
+    }
+    
+    function diff(a) {
+      return Number(a[a.length - 1] || 0) - Number(a[a.length - 2] || 0);
+    }
+    
+    function cls(d) {
+      return d > 0 ? "plus-trend" : d < 0 ? "minus-trend" : "zero-trend";
+    }
+    
+    function dtext(d, p = "", s = "") {
+      if (d === 0) return "- 持平";
+      return (d > 0 ? "↑ +" : "↓ -") + (p === "$" ? "$" : "") + Math.abs(d).toLocaleString() + s;
+    }
+
+    // 登入驗證
+    const login = document.getElementById("login");
+    const appElement = document.getElementById("app");
+    
+    function showApp() {
+      login.classList.add("opacity-0", "pointer-events-none");
+      setTimeout(() => login.style.display = "none", 300);
+      appElement.classList.remove("hidden");
+      renderAll();
+    }
+    
+    if (Date.now() < Number(localStorage.getItem("igymLoginUntil") || 0)) {
+      showApp();
+    }
+    
+    document.getElementById("loginBtn").onclick = () => {
+      const pwInput = document.getElementById("pw");
+      if (pwInput.value.trim() === PASSWORD) {
+        localStorage.setItem("igymLoginUntil", Date.now() + 7 * 24 * 60 * 60 * 1000);
+        showApp();
+      } else {
+        const errMsg = document.getElementById("err");
+        errMsg.textContent = "密碼錯誤，請重新輸入";
+        document.querySelector(".login-card")?.classList.add("animate-bounce");
+        setTimeout(() => document.querySelector(".login-card")?.classList.remove("animate-bounce"), 1000);
+      }
+    };
+    
+    document.getElementById("pw").onkeydown = e => {
+      if (e.key === "Enter") document.getElementById("loginBtn").click();
+    };
+    
+    document.getElementById("eye").onclick = e => {
+      e.preventDefault();
+      const pwInput = document.getElementById("pw");
+      const icon = document.querySelector("#eye i");
+      if (pwInput.type === "password") {
+        pwInput.type = "text";
+        icon.className = "fa-regular fa-eye-slash";
+      } else {
+        pwInput.type = "password";
+        icon.className = "fa-regular fa-eye";
+      }
+    };
+    
+    document.getElementById("logout").onclick = () => {
+      localStorage.removeItem("igymLoginUntil");
+      location.reload();
+    };
+
+    // 側邊選單與子頁面切換切換
+    function switchPage(p) {
+      currentPage = p;
+      document.querySelectorAll(".page").forEach(x => x.classList.add("hidden"));
+      document.getElementById("page-" + p).classList.remove("hidden");
+      
+      document.querySelectorAll(".navBtn").forEach(b => {
+        if (b.dataset.page === p) {
+          b.classList.add("bg-igym-100", "text-igym-800", "dark:bg-igym-950/50", "dark:text-igym-300");
+          b.classList.remove("text-slate-600", "dark:text-slate-300");
+        } else {
+          b.classList.remove("bg-igym-100", "text-igym-800", "dark:bg-igym-950/50", "dark:text-igym-300");
+          b.classList.add("text-slate-600", "dark:text-slate-300");
+        }
+      });
+      
+      document.getElementById("side").classList.add("-translate-x-[110%]"); // 行動版收起
+      
+      setTimeout(() => {
+        if (p === "dashboard") renderRevenue();
+        if (p === "coaches") renderCoach();
+        Object.values(charts).forEach(c => c.resize && c.resize());
+      }, 150);
+    }
+    
+    document.querySelectorAll(".navBtn").forEach(b => b.onclick = () => switchPage(b.dataset.page));
+
+    // 渲染營運指標 (儀表板首列卡片)
+    function renderKpis() {
+      const kpisContainer = document.getElementById("kpis");
+      kpisContainer.innerHTML = "";
+      
+      const icons = {
+        "單次進場": "fa-arrow-pointer-solid",
+        "訂閱人數": "fa-layer-group",
+        "有效會員": "fa-users-line",
+        "教練業績": "fa-sack-dollar"
+      };
+      
+      Object.entries(DATA.kpi).forEach(([name, values]) => {
+        const change = diff(values);
+        const money = name.includes("業績");
+        const iconClass = name === "單次進場" ? "fa-arrow-pointer" : name === "訂閱人數" ? "fa-rotate" : name === "有效會員" ? "fa-user-check" : "fa-dollar-sign";
+        
+        kpisContainer.innerHTML += `
+          <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-md flex items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">${name}</div>
+              <div class="text-2xl font-black text-slate-800 dark:text-slate-100">${fmt(values.at(-1), money ? "$" : "")}</div>
+              <div class="text-xs flex items-center gap-1 ${cls(change)}">
+                <span>${dtext(change, money ? "$" : "")}</span>
+              </div>
+            </div>
+            <div class="w-12 h-12 rounded-xl bg-orange-100/50 dark:bg-igym-950/30 text-igym-600 dark:text-igym-400 flex items-center justify-center text-lg">
+              <i class="fa-solid ${iconClass}"></i>
+            </div>
+          </div>`;
+      });
+      
+      // 更新標題資訊與經營健康度
+      document.getElementById("dashboard-subtitle").innerHTML = `
+        <i class="fa-solid fa-calendar-days"></i> 目前月份：<b class="text-white underline decoration-wavy">${DATA.months.at(-1) || 'N/A'}</b> ｜ 
+        <i class="fa-solid fa-clock-rotate-left"></i> 最後更新：${new Date().toLocaleDateString('zh-TW', {year: 'numeric', month: '2-digit'})}
+      `;
+      
+      // 計算並渲染健康度
+      calculateHealthScore();
+    }
+
+    function calculateHealthScore() {
+      // 動態健康指數公式
+      const coachValue = DATA.kpi["教練業績"].at(-1) || 0;
+      const memberValue = DATA.kpi["有效會員"].at(-1) || 0;
+      const singleValue = DATA.kpi["單次進場"].at(-1) || 0;
+      
+      let base = 70;
+      if (coachValue > 900000) base += 10;
+      if (memberValue > 350) base += 8;
+      if (singleValue > 1400) base += 7;
+      
+      const capped = Math.min(99, Math.max(30, base));
+      document.getElementById("healthScore").textContent = capped + "%";
+    }
+
+    // 高解析度動態表格結構生成 (支援 ContentEditable 在編輯模式)
+    function makeTable(rows, id, isCategorized = true) {
+      let headHTML = `
+        <thead>
+          <tr class="bg-igym-50/70 dark:bg-igym-950/30 text-igym-800 dark:text-igym-300 font-extrabold text-left border-b border-slate-200 dark:border-slate-800">
+            ${isCategorized ? `<th class="p-3.5 pl-5 sticky left-0 bg-igym-50 dark:bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.05)]">類別</th>` : ""}
+            <th class="p-3.5 ${!isCategorized ? 'pl-5' : ''}">項目</th>
+            ${DATA.months.map(m => `<th class="p-3.5 text-right">${m}</th>`).join("")}
+            <th class="p-3.5 pr-5 text-right">與上月差異</th>
+          </tr>
+        </thead>`;
+        
+      let bodyHTML = rows.map((r, ri) => {
+        let category = isCategorized ? r[0] : "";
+        let name = isCategorized ? r[1] : r[0];
+        let values = isCategorized ? r[2] : r[1];
+        let typeSuffix = isCategorized ? r[3] : "";
+        let unit = typeSuffix === "位" ? "位" : "";
+        let change = diff(values);
+        
+        let cells = values.map((val, mi) => `
+          <td ${window.IGYM_EDIT ? `contenteditable="true" class="p-3 text-right igym-edit-cell" data-row="${ri}" data-month="${mi}"` : `class="p-3 text-right font-medium"`}>
+            ${fmt(val, typeSuffix, unit)}
+          </td>`).join("");
+          
+        return `
+          <tr class="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+            ${isCategorized ? `<td class="p-3 pl-5 sticky left-0 bg-white dark:bg-slate-900 shadow-[2px_0_5px_rgba(0,0,0,0.02)] font-black text-slate-500 dark:text-slate-400 text-xs">${category}</td>` : ""}
+            <td class="p-3 ${!isCategorized ? 'pl-5' : ''} font-bold text-slate-700 dark:text-slate-300">${name}</td>
+            ${cells}
+            <td class="p-3 pr-5 text-right font-bold ${cls(change)}">${dtext(change, typeSuffix, unit)}</td>
+          </tr>`;
+      }).join("");
+      
+      document.getElementById(id).innerHTML = headHTML + `<tbody class="divide-y divide-slate-100 dark:divide-slate-800">` + bodyHTML + "</tbody>";
+      
+      if (window.IGYM_EDIT) {
+        bindEditableCells(id, rows, isCategorized);
+      }
+    }
+
+    // 儲存格編輯綁定
+    function bindEditableCells(id, rows, isCategorized) {
+      document.querySelectorAll(`#${id} .igym-edit-cell`).forEach(td => {
+        td.onkeydown = e => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            td.blur();
+          }
+        };
+        td.onblur = () => {
+          const ri = Number(td.dataset.row);
+          const mi = Number(td.dataset.month);
+          const arr = isCategorized ? rows[ri][2] : rows[ri][1];
+          const rawNum = Number(String(td.textContent).replace(/[,$，\s位人堂]/g, "") || 0);
+          
+          arr[mi] = rawNum;
+          syncAfterEdit();
+          saveIgymData();
+          renderKpis();
+          showToast("數據修改已儲存並自動同步！", "success");
+        };
+      });
+    }
+
+    // 編輯後同步核心公式
+    function syncAfterEdit() {
+      const getOpRow = (cat, item) => DATA.operation.find(r => r[0] === cat && r[1] === item);
+      
+      if (getOpRow("單次進場人數", "總人數")) DATA.kpi["單次進場"] = getOpRow("單次進場人數", "總人數")[2];
+      if (getOpRow("訂閱人數", "總人數")) DATA.kpi["訂閱人數"] = getOpRow("訂閱人數", "總人數")[2];
+      if (getOpRow("教練課程", "總金額")) DATA.kpi["教練業績"] = getOpRow("教練課程", "總金額")[2];
+      
+      const sub = DATA.effective.find(r => r[0] === "訂閱制")?.[1] || [];
+      const y888 = DATA.effective.find(r => r[0] === "全時段年約")?.[1] || [];
+      const y788 = DATA.effective.find(r => r[0] === "限時段年約")?.[1] || [];
+      
+      DATA.kpi["有效會員"] = DATA.months.map((_, i) => Number(sub[i] || 0) + Number(y888[i] || 0) + Number(y788[i] || 0));
+    }
+
+    // 渲染高動態圓角營收長條圖
+    function dashboardRevenueBarChart(id, labels, values, label, money = false) {
+      if (charts[id]) charts[id].destroy();
+      const nums = values.map(v => Number(v || 0));
+      const max = Math.max(...nums);
+      
+      const isDark = document.documentElement.classList.contains('dark');
+      
+      charts[id] = new Chart(document.getElementById(id), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data: nums,
+            borderWidth: 0,
+            borderRadius: 12,
+            borderSkipped: false,
+            maxBarThickness: 26,
+            categoryPercentage: 0.55,
+            barPercentage: 0.6,
+            backgroundColor: (ctx) => {
+              const v = Number(ctx.raw || 0);
+              return v === max && max > 0 ? "#f97316" : (isDark ? "rgba(251,146,60,0.25)" : "rgba(251,146,60,0.34)");
+            }
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          clip: false,
+          animation: { duration: 600, easing: "easeOutQuart" },
+          layout: { padding: { top: 35, left: 10, right: 10, bottom: 5 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: true,
+              backgroundColor: isDark ? "#1e293b" : "#0f172a",
+              titleColor: "#fff",
+              bodyColor: "#fff",
+              padding: 10,
+              cornerRadius: 12,
+              displayColors: false,
+              callbacks: { label: c => label + "：" + (money ? "$" : "") + Number(c.raw).toLocaleString() }
+            },
+            datalabels: { display: false },
+            barValueLabels: { enabled: true, money, unit: "" }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { padding: 8, font: { size: 10, weight: "850" }, color: isDark ? "#94a3b8" : "#64748b" }
+            },
+            y: {
+              beginAtZero: true,
+              grace: "18%",
+              grid: { color: isDark ? "rgba(71,85,105,0.15)" : "rgba(148,163,184,0.1)" },
+              border: { display: false },
+              ticks: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    // 教練詳細指標長條圖 (業績, 操課堂數, 學員, 體驗課)
+    function coachBarChart(id, labels, values, label, money = false, unit = "") {
+      if (charts[id]) charts[id].destroy();
+      const nums = values.map(v => Number(v || 0));
+      const max = Math.max(...nums);
+      
+      const isDark = document.documentElement.classList.contains('dark');
+      
+      charts[id] = new Chart(document.getElementById(id), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data: nums,
+            borderWidth: 0,
+            borderRadius: 12,
+            borderSkipped: false,
+            maxBarThickness: 20,
+            categoryPercentage: 0.5,
+            barPercentage: 0.6,
+            backgroundColor: (ctx) => {
+              const v = Number(ctx.raw || 0);
+              return v === max && max > 0 ? "#f97316" : (isDark ? "rgba(251,146,60,0.22)" : "rgba(251,146,60,0.3)");
+            }
+          }]
+        },
+        options: {
+          devicePixelRatio: Math.max(window.devicePixelRatio || 1, 2),
+          responsive: true,
+          maintainAspectRatio: false,
+          clip: false,
+          animation: { duration: 600, easing: "easeOutQuart" },
+          layout: { padding: { top: 35, left: 10, right: 10, bottom: 5 } },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              enabled: true,
+              backgroundColor: isDark ? "#1e293b" : "#0f172a",
+              titleColor: "#fff",
+              bodyColor: "#fff",
+              padding: 10,
+              cornerRadius: 12,
+              displayColors: false,
+              callbacks: { label: c => label + "：" + formatChartValue(c.raw, money, unit) }
+            },
+            datalabels: { display: false },
+            barValueLabels: { enabled: true, money, unit }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { padding: 8, font: { size: 10, weight: "850" }, color: isDark ? "#94a3b8" : "#64748b" }
+            },
+            y: {
+              beginAtZero: true,
+              grace: "18%",
+              grid: { color: isDark ? "rgba(71,85,105,0.15)" : "rgba(148,163,184,0.1)" },
+              border: { display: false },
+              ticks: { display: false }
+            }
+          }
+        }
+      });
+    }
+
+    function formatChartValue(v, money = false, unit = "") {
+      v = Number(v || 0);
+      if (money) return "$" + v.toLocaleString();
+      return v.toLocaleString() + unit;
+    }
+    
+    function avg(a) {
+      return Math.round(a.reduce((s, v) => s + Number(v || 0), 0) / Math.max(a.length, 1));
+    }
+    
+    function trendText(a, money = false, unit = "") {
+      let d = diff(a), p = money ? "$" : "";
+      if (d === 0) return "與上月持平";
+      return (d > 0 ? "較上月增加 " : "較上月減少 ") + p + Math.abs(d).toLocaleString() + unit;
+    }
+
+    // 渲染教練摘要統計數據塊
+    function renderCoachSummary() {
+      const coachSummary = document.getElementById("coachSummary");
+      let c = DATA.coaches[selectedCoach];
+      if (!c) return;
+      
+      let revenue = c["業績"], classes = c["操課"], students = c["學員"], trials = c["體驗"];
+      coachSummary.innerHTML = `
+        <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-md">
+          <div class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">最新銷售業績</div>
+          <div class="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">${formatChartValue(revenue.at(-1), true)}</div>
+          <div class="text-xs ${cls(diff(revenue))} font-bold">${trendText(revenue, true)}</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-md">
+          <div class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">平均操課堂數</div>
+          <div class="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">${avg(classes)} 堂</div>
+          <div class="text-xs text-slate-400 font-bold">最高當月 ${Math.max(...classes)} 堂</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-md">
+          <div class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">活跃授課學員</div>
+          <div class="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">${students.at(-1)} 人</div>
+          <div class="text-xs ${cls(diff(students))} font-bold">${trendText(students, false, "人")}</div>
+        </div>
+        <div class="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 shadow-md">
+          <div class="text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">體驗課人數</div>
+          <div class="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">${trials.at(-1)} 人</div>
+          <div class="text-xs ${cls(diff(trials))} font-bold">${trendText(trials, false, "人")}</div>
+        </div>`;
+    }
+
+    // 建立教練頁籤
+    function renderTabs() {
+      const coachTabs = document.getElementById("coachTabs");
+      coachTabs.innerHTML = "";
+      Object.keys(DATA.coaches).forEach(c => {
+        let b = document.createElement("button");
+        b.className = `px-4 py-2 text-xs font-black rounded-xl border transition-all ${
+          c === selectedCoach 
+            ? "bg-igym-500 text-white border-transparent shadow-sm" 
+            : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+        }`;
+        b.textContent = c;
+        b.onclick = () => {
+          selectedCoach = c;
+          renderTabs();
+          renderCoach();
+        };
+        coachTabs.appendChild(b);
+      });
+    }
+
+    // 重新繪製教練的 4 個數據卡片
+    function renderCoach() {
+      let c = DATA.coaches[selectedCoach];
+      if (!c) return;
+      renderCoachSummary();
+      coachBarChart("coachRevenue", DATA.months, c["業績"], selectedCoach + " 業績", true);
+      coachBarChart("coachClasses", DATA.months, c["操課"], selectedCoach + " 操課", false, "堂");
+      coachBarChart("coachStudents", DATA.months, c["學員"], selectedCoach + " 學員", false, "人");
+      coachBarChart("coachTrials", DATA.months, c["體驗"], selectedCoach + " 體驗", false, "人");
+    }
+
+    function renderRevenue() {
+      dashboardRevenueBarChart("revenueChart", DATA.revenue13.months, DATA.revenue13.values, "營收", true);
+    }
+
+    // 數據回收暫存區與刪除控制
+    function renderTrash() {
+      const trashList = document.getElementById("trashList");
+      trashList.innerHTML = trash.length 
+        ? trash.map((x, i) => `
+            <div class="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+              <div class="space-y-1">
+                <div class="text-xs font-black text-slate-800 dark:text-slate-200">${x.month || x.label}</div>
+                <div class="text-[10px] text-slate-400 font-bold">${x.type === 'month' ? '月度完整封包資料' : x.type}</div>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <button class="px-2.5 py-1.5 bg-igym-100 hover:bg-igym-200 dark:bg-igym-950/40 text-igym-700 dark:text-igym-300 rounded-lg text-[10px] font-black transition-all" onclick="restoreTrash(${i})">
+                  還原
+                </button>
+                <button class="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 text-red-600 rounded-lg text-[10px] font-black transition-all" onclick="deleteForever(${i})">
+                  永久銷毀
+                </button>
+              </div>
+            </div>`).join("") 
+        : `<p class="text-xs text-slate-400 text-center py-8">目前暫存區空無一物。</p>`;
+    }
+
+    function saveIgymData() {
+      localStorage.setItem("igymDashboardData", JSON.stringify(DATA));
+      localStorage.setItem("igymTrash", JSON.stringify(trash));
+    }
+    
+    function refreshIgym() {
+      renderAll();
+      if (currentPage === "dashboard") renderRevenue();
+      if (currentPage === "coaches") renderCoach();
+    }
+    
+    function nextIgymMonth() {
+      const last = DATA.months[DATA.months.length - 1] || "0月";
+      const n = parseInt(String(last).replace(/[^0-9]/g, "")) || 0;
+      return ((n % 12) + 1) + "月";
+    }
+
+    // 1. 新增月份功能
+    function addIgymMonth() {
+      const nextM = nextIgymMonth();
+      if (DATA.months.includes(nextM)) {
+        showToast(`${nextM} 已存在，請確認是否需先進行刪除`, "error");
+        return;
+      }
+      
+      DATA.months.push(nextM);
+      Object.keys(DATA.kpi).forEach(k => DATA.kpi[k].push(0));
+      DATA.operation.forEach(r => r[2].push(0));
+      DATA.effective.forEach(r => r[1].push(0));
+      
+      Object.keys(DATA.coaches).forEach(name => {
+        Object.keys(DATA.coaches[name]).forEach(metric => DATA.coaches[name][metric].push(0));
+      });
+      
+      DATA.revenue13.months.push(nextM);
+      DATA.revenue13.values.push(0);
+      if (DATA.revenue13.months.length > 13) {
+        DATA.revenue13.months.shift();
+        DATA.revenue13.values.shift();
+      }
+      
+      saveIgymData();
+      refreshIgym();
+      showToast(`已成功新增 ${nextM} 資料空欄位！`, "success");
+    }
+
+    // 2. 刪除月份
+    function openIgymDeleteModal() {
+      const modal = document.getElementById("igymDeleteMonthModal");
+      const list = document.getElementById("igymDeleteMonthList");
+      list.innerHTML = DATA.months.map((m, i) => `
+        <button type="button" class="py-3 bg-igym-50/70 dark:bg-igym-950/20 border border-igym-500/10 hover:border-igym-500 rounded-xl text-xs font-black text-igym-800 dark:text-igym-300 hover:bg-igym-100 dark:hover:bg-igym-950/50 hover:scale-95 transition-all" data-index="${i}">
+          ${m}
+        </button>`).join("");
+        
+      list.querySelectorAll("button").forEach(btn => {
+        btn.onclick = () => deleteIgymMonth(Number(btn.dataset.index));
+      });
+      modal.classList.remove("hidden");
+    }
+    
+    function closeIgymDeleteModal() {
+      document.getElementById("igymDeleteMonthModal").classList.add("hidden");
+    }
+
+    function snapshotIgymMonth(idx) {
+      const month = DATA.months[idx];
+      const ri = DATA.revenue13.months.lastIndexOf(month);
+      return {
+        type: "month",
+        label: month + " 月度數據完整快照",
+        month,
+        index: idx,
+        at: new Date().toISOString(),
+        kpi: Object.fromEntries(Object.entries(DATA.kpi).map(([k, a]) => [k, a[idx] || 0])),
+        operation: DATA.operation.map(r => r[2][idx] || 0),
+        effective: DATA.effective.map(r => r[1][idx] || 0),
+        coaches: Object.fromEntries(Object.entries(DATA.coaches).map(([name, c]) => [
+          name,
+          Object.fromEntries(Object.entries(c).map(([metric, a]) => [metric, a[idx] || 0]))
+        ])),
+        revenueValue: ri >= 0 ? DATA.revenue13.values[ri] || 0 : 0
+      };
+    }
+
+    function deleteIgymMonth(idx) {
+      if (DATA.months.length <= 1) {
+        showToast("資料庫至少必須保留一個月份！", "error");
+        return;
+      }
+      const snap = snapshotIgymMonth(idx);
+      trash.push(snap);
+      
+      DATA.months.splice(idx, 1);
+      Object.keys(DATA.kpi).forEach(k => DATA.kpi[k].splice(idx, 1));
+      DATA.operation.forEach(r => r[2].splice(idx, 1));
+      DATA.effective.forEach(r => r[1].splice(idx, 1));
+      
+      Object.keys(DATA.coaches).forEach(name => {
+        Object.keys(DATA.coaches[name]).forEach(metric => DATA.coaches[name][metric].splice(idx, 1));
+      });
+      
+      const ri = DATA.revenue13.months.lastIndexOf(snap.month);
+      if (ri >= 0) {
+        DATA.revenue13.months.splice(ri, 1);
+        DATA.revenue13.values.splice(ri, 1);
+      }
+      
+      closeIgymDeleteModal();
+      saveIgymData();
+      refreshIgym();
+      showToast(`已成功將 ${snap.month} 封裝移至回收桶！`, "warning");
+    }
+
+    // 3. 還原月份
+    function restoreIgymMonth(i) {
+      const x = trash[i];
+      if (!x || x.type !== "month") {
+        trash.splice(i, 1);
+        saveIgymData();
+        renderTrash();
+        return;
+      }
+      const idx = Math.min(x.index, DATA.months.length);
+      DATA.months.splice(idx, 0, x.month);
+      Object.keys(DATA.kpi).forEach(k => DATA.kpi[k].splice(idx, 0, x.kpi[k] || 0));
+      DATA.operation.forEach((r, ri) => r[2].splice(idx, 0, x.operation[ri] || 0));
+      DATA.effective.forEach((r, ri) => r[1].splice(idx, 0, x.effective[ri] || 0));
+      
+      Object.keys(DATA.coaches).forEach(name => {
+        Object.keys(DATA.coaches[name]).forEach(metric => {
+          DATA.coaches[name][metric].splice(idx, 0, x.coaches?.[name]?.[metric] || 0);
+        });
+      });
+      
+      DATA.revenue13.months.push(x.month);
+      DATA.revenue13.values.push(x.revenueValue || 0);
+      if (DATA.revenue13.months.length > 13) {
+        DATA.revenue13.months.shift();
+        DATA.revenue13.values.shift();
+      }
+      
+      trash.splice(i, 1);
+      saveIgymData();
+      renderTrash();
+      refreshIgym();
+      showToast(`已復原 ${x.month} 之全部營運細節數據！`, "success");
+    }
+
+    function deleteIgymForever(i) {
+      i = Number(i);
+      if (Number.isNaN(i) || i < 0 || i >= trash.length) {
+        showToast("找不到對應項目", "error");
+        return;
+      }
+      const item = trash[i];
+      trash.splice(i, 1);
+      saveIgymData();
+      renderTrash();
+      showToast(`已徹底永久銷毀：${item.month || item.label}`, "error");
+    }
+
+    window.restoreTrash = restoreIgymMonth;
+    window.deleteForever = deleteIgymForever;
+
+    // 清空回收桶
+    document.getElementById("clearTrashBtn").onclick = () => {
+      if (!trash.length) {
+        showToast("回收桶本就無任何項目", "warning");
+        return;
+      }
+      trash = [];
+      saveIgymData();
+      renderTrash();
+      showToast("已清空回收桶內所有暫存資料！", "error");
+    };
+
+    // 4. 編輯模式切換
+    function toggleIgymEdit() {
+      window.IGYM_EDIT = !window.IGYM_EDIT;
+      document.body.classList.toggle("igym-editing", window.IGYM_EDIT);
+      
+      const btn = document.getElementById("igymEditBtn");
+      if (window.IGYM_EDIT) {
+        btn.innerHTML = `<i class="fa-solid fa-circle-check"></i> 完成編輯`;
+        btn.classList.replace("bg-igym-500", "bg-emerald-600");
+        showToast("進入手動表單編輯模式，您可直接點擊表格儲存格修改數值", "warning");
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-pen-to-square"></i> 編輯模式`;
+        btn.classList.replace("bg-emerald-600", "bg-igym-500");
+        showToast("已退出編輯模式並完成最終資料保存！", "success");
+      }
+      
+      makeTable(DATA.operation, "operationTable", true);
+      makeTable(DATA.effective, "effectiveTable", false);
+    }
+
+    document.getElementById("igymAddMonthBtn").onclick = addIgymMonth;
+    document.getElementById("igymDeleteMonthBtn").onclick = openIgymDeleteModal;
+    document.getElementById("igymEditBtn").onclick = toggleIgymEdit;
+    document.getElementById("igymCloseDeleteModal").onclick = closeIgymDeleteModal;
+    
+    // 點擊 Modal 外部防呆關閉
+    document.getElementById("igymDeleteMonthModal").onclick = e => {
+      if (e.target.id === "igymDeleteMonthModal") closeIgymDeleteModal();
+    };
+    
+    const drawer = document.getElementById("drawer");
+    document.getElementById("trashBtn").onclick = () => {
+      drawer.classList.remove("translate-x-[110%]");
+      renderTrash();
+    };
+    
+    const closeTrash = () => drawer.classList.add("translate-x-[110%]");
+    document.getElementById("closeTrash").onclick = closeTrash;
+    document.getElementById("closeTrashBtn").onclick = closeTrash;
+    document.getElementById("menu").onclick = () => {
+      const side = document.getElementById("side");
+      side.classList.toggle("-translate-x-[110%]");
+    };
+
+    // 📷 匯入月報之 OCR 辨識模組
+    function igymImportSave() {
+      localStorage.setItem("igymDashboardData", JSON.stringify(DATA));
+      localStorage.setItem("igymTrash", JSON.stringify(trash));
+    }
+    
+    function igymImportRefresh() {
+      syncAfterEdit();
+      renderAll();
+      if (currentPage === "dashboard") renderRevenue();
+      if (currentPage === "coaches") renderCoach();
+    }
+    
+    function igymImportSetStatus(t) {
+      const el = document.getElementById("igymImportStatus");
+      if (el) el.innerHTML = `<i class="fa-solid fa-circle-info mr-1"></i> ${t}`;
+    }
+    
+    function igymImportField(k) {
+      return Number(document.querySelector(`[data-import-field="${k}"]`)?.value || 0);
+    }
+    
+    function igymImportSetField(k, v) {
+      const el = document.querySelector(`[data-import-field="${k}"]`);
+      if (el) el.value = Number(v || 0);
+    }
+    
+    function igymOpenImport() {
+      const modal = document.getElementById("igymImportModal");
+      const sel = document.getElementById("igymImportMonth");
+      if (!modal || !sel) return;
+      sel.innerHTML = DATA.months.map((m, i) => `<option value="${i}">${m}</option>`).join("");
+      sel.value = String(DATA.months.length - 1);
+      modal.classList.remove("hidden");
+    }
+    
+    function igymCloseImport() {
+      document.getElementById("igymImportModal")?.classList.add("hidden");
+    }
+    
+    document.getElementById("igymCloseImportBtn").onclick = igymCloseImport;
+
+    function igymPreviewImportImages() {
+      const box = document.getElementById("igymImportPreview");
+      const input = document.getElementById("igymImportImages");
+      if (!box || !input) return;
+      box.innerHTML = "";
+      [...input.files].forEach(file => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "relative rounded-xl overflow-hidden border border-slate-200 aspect-[4/3] group shadow-sm bg-slate-100";
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(file);
+        img.className = "w-full h-full object-cover group-hover:scale-105 transition-transform duration-300";
+        wrapper.appendChild(img);
+        box.appendChild(wrapper);
+      });
+      igymImportSetStatus(`已加載 ${input.files.length} 張圖片，請點選「開始 AI 辨識」。`);
+    }
+
+    function igymNormalizeNumber(v) {
+      return Number(String(v || "").replace(/[,$，\s人位堂元=:]/g, "")) || 0;
+    }
+
+    function igymParseImportText() {
+      const text = document.getElementById("igymOCRText")?.value || "";
+      const map = [
+        [["100人數", "單次100人數", "100元人數"], "single100Count"], [["100金額", "單次100金額", "100元金額"], "single100Amount"],
+        [["120人數", "單次120人數", "120元人數"], "single120Count"], [["120金額", "單次120金額", "120元金額"], "single120Amount"],
+        [["150人數", "單次150人數", "150元人數"], "single150Count"], [["150金額", "單次150金額", "150元金額"], "single150Amount"],
+        [["訂閱制", "訂閱有效", "訂閱人數"], "subMembers"], [["全時段年約", "年約888", "888年約"], "fullYearMembers"],
+        [["限時段年約", "年約788", "788年約"], "limitedYearMembers"], [["教練總金額", "教練業績", "教練課程"], "coachRevenue"],
+        [["A課", "A課總計"], "aCourse"], [["B課", "B課總計"], "bCourse"], [["授課小計", "授課"], "classSubtotal"], [["體驗課", "體驗課人數"], "trialCount"]
+      ];
+      let filled = 0;
+      text.split(/\n+/).forEach(line => {
+        const m = line.match(/^\s*([^:=：]+)\s*[:=：]\s*([0-9,，\s]+)\s*$/);
+        if (!m) return;
+        const key = m[1].replace(/\s/g, "");
+        const val = igymNormalizeNumber(m[2]);
+        map.forEach(([aliases, field]) => {
+          if (aliases.some(a => key.includes(a))) {
+            igymImportSetField(field, val);
+            filled++;
+          }
+        });
+      });
+      
+      const subtotal = igymImportField("classSubtotal");
+      const a = igymImportField("aCourse");
+      const b = igymImportField("bCourse");
+      if (subtotal && !igymImportField("trialCount")) {
+        igymImportSetField("trialCount", Math.max(0, Math.round((subtotal - a - b) / 599)));
+      }
+      if (subtotal && !igymImportField("coachRevenue")) {
+        igymImportSetField("coachRevenue", subtotal);
+      }
+      igymImportSetStatus(filled ? `已成功提取並載入 ${filled} 個匹配欄位！` : "未能精準識別固定格式，您可以點選右側面板手動填補或微調數值。");
+    }
+
+    async function igymRunOCR() {
+      const input = document.getElementById("igymImportImages");
+      const area = document.getElementById("igymOCRText");
+      if (!input || !input.files.length) {
+        showToast("請先選擇圖片檔案進行辨識", "error");
+        return;
+      }
+      if (!window.Tesseract) {
+        showToast("Tesseract OCR 辨識引擎未就緒，請檢查網頁是否成功載入", "error");
+        return;
+      }
+      igymImportSetStatus("影像辨識引擎啟動中...");
+      let allText = "";
+      for (const file of input.files) {
+        try {
+          const result = await Tesseract.recognize(file, "chi_tra+eng", {
+            logger: m => {
+              if (m.status === "recognizing") {
+                igymImportSetStatus(`正在辨識圖片 [${file.name}] ... 比例：${Math.round((m.progress || 0) * 100)}%`);
+              }
+            }
+          });
+          allText += `\n\n--- 影像 [${file.name}] ---\n` + (result.data.text || "");
+        } catch (e) {
+          allText += `\n\n--- 影像 [${file.name}] 辨識失敗 ---\n` + e.message;
+        }
+      }
+      area.value = allText.trim();
+      igymParseImportText();
+    }
+
+    function igymSetOpValue(cat, item, idx, val) {
+      const row = DATA.operation.find(r => r[0] === cat && r[1] === item);
+      if (row) row[2][idx] = Number(val || 0);
+    }
+
+    function igymApplyImport() {
+      const idx = Number(document.getElementById("igymImportMonth")?.value || 0);
+      if (idx < 0 || idx >= DATA.months.length) {
+        showToast("匯入月份指向異常，請確認月份", "error");
+        return;
+      }
+      
+      const c100 = igymImportField("single100Count");
+      const a100 = igymImportField("single100Amount");
+      const c120 = igymImportField("single120Count");
+      const a120 = igymImportField("single120Amount");
+      const c150 = igymImportField("single150Count");
+      const a150 = igymImportField("single150Amount");
+      
+      const totalCount = c100 + c120 + c150;
+      const totalAmount = a100 + a120 + a150;
+      
+      igymSetOpValue("單次進場人數", "100$", idx, c100);
+      igymSetOpValue("單次進場人數", "120$", idx, c120);
+      igymSetOpValue("單次進場人數", "150$", idx, c150);
+      igymSetOpValue("單次進場人數", "總人數", idx, totalCount);
+      igymSetOpValue("單次進場人數", "總金額", idx, totalAmount);
+      
+      const sub = igymImportField("subMembers");
+      const full = igymImportField("fullYearMembers");
+      const limited = igymImportField("limitedYearMembers");
+      
+      const effSub = DATA.effective.find(r => r[0] === "訂閱制"); if (effSub) effSub[1][idx] = sub;
+      const effFull = DATA.effective.find(r => r[0] === "全時段年約"); if (effFull) effFull[1][idx] = full;
+      const effLimited = DATA.effective.find(r => r[0] === "限時段年約"); if (effLimited) effLimited[1][idx] = limited;
+      
+      igymSetOpValue("訂閱人數", "總人數", idx, sub);
+      igymSetOpValue("年約(全時段) 888", "總人數", idx, full);
+      igymSetOpValue("年約(限時段) 788", "總人數", idx, limited);
+      
+      const coachRevenue = igymImportField("coachRevenue");
+      const aCourse = igymImportField("aCourse");
+      const bCourse = igymImportField("bCourse");
+      const trial = igymImportField("trialCount");
+      
+      igymSetOpValue("教練課程", "總金額", idx, coachRevenue);
+      igymSetOpValue("教練課程", "A客(新)", idx, aCourse);
+      igymSetOpValue("教練課程", "B客(舊)", idx, bCourse);
+      igymSetOpValue("教練課程", "體驗課", idx, trial);
+      
+      DATA.kpi["單次進場"][idx] = totalCount;
+      if (DATA.kpi["訂閱人數"]) DATA.kpi["訂閱人數"][idx] = sub;
+      DATA.kpi["有效會員"][idx] = sub + full + limited;
+      DATA.kpi["教練業績"][idx] = coachRevenue;
+      
+      const month = DATA.months[idx];
+      const ri = DATA.revenue13.months.lastIndexOf(month);
+      if (ri >= 0) DATA.revenue13.values[ri] = coachRevenue;
+      
+      igymImportSave();
+      igymImportRefresh();
+      igymCloseImport();
+      showToast(`已成功覆蓋並更新 ${month} 月度財務營運報表數據！`, "success");
+    }
+
+    function igymBindImportFeature() {
+      document.getElementById("igymImportBtn").onclick = igymOpenImport;
+      document.getElementById("igymCloseImport").onclick = igymCloseImport;
+      
+      document.getElementById("igymImportModal").onclick = e => {
+        if (e.target.id === "igymImportModal") igymCloseImport();
+      };
+      
+      document.getElementById("igymImportImages").onchange = igymPreviewImportImages;
+      document.getElementById("igymRunOCR").onclick = igymRunOCR;
+      document.getElementById("igymParseText").onclick = igymParseImportText;
+      document.getElementById("igymApplyImport").onclick = igymApplyImport;
+    }
+
+    // 進入程序初次渲染與掛載
+    function renderAll() {
+      // 設置營運區間文字
+      document.getElementById("operationRange").textContent = `${DATA.months[0]} ～ ${DATA.months.at(-1)}`;
+      
+      renderKpis();
+      makeTable(DATA.operation, "operationTable", true);
+      makeTable(DATA.effective, "effectiveTable", false);
+      renderTabs();
+      
+      setTimeout(() => {
+        renderRevenue();
+        if (currentPage === "coaches") renderCoach();
+      }, 150);
+    }
+
+    window.onload = () => {
+      igymBindImportFeature();
+      // 防呆：防止視窗縮放導致圖表尺寸跑掉
+      window.addEventListener('resize', () => {
+        Object.values(charts).forEach(c => c.resize && c.resize());
+      });
+    };
+  </script>
+</body>
+</html>
